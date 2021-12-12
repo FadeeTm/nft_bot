@@ -52,8 +52,3 @@ def create_collectible(token_uri, private_key):
     transaction.wait(1)
     return OPENSEA_FORMAT.format(simple_collectible.address, token_id)
 
-
-def main():
-    uri = create_token_uri('ABOBA-1', 'pamagite', 'https://static-cdn.jtvnw.net/jtv_user_pictures/3d5e726c-9b73-479b-8e90-9abb39562088-profile_image-300x300.png', attrs=[])
-    nft_token = create_collectible(uri, '6bef675126d091db783b13ebe9a115a39181e7203ec4acb5744767608b61776c')
-    print(nft_token)

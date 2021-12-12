@@ -11,7 +11,7 @@ bot = Bot(token = BOT_TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 all_commands = ['/sell', '/buy']
-all_tokens = ['token1', 'token2']
+all_tokens = []
 
 class ChooseCommand(StatesGroup):
     private_key = State()
