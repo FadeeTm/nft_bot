@@ -5,73 +5,85 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
 from config import BOT_TOKEN
 
-GREETINGS = ('Здравствуй, пользователь {name} !\n'
-             ' Основные команды:\n'
-             ' /команда'
-            )
+GREETINGS = ('Nice to see you, {name}')
 
 bot = Bot(token = BOT_TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
-all_commands = ['передать', 'продать', 'купить']
+all_commands = ['/sell', '/buy']
+all_tokens = ['token1', 'token2']
 
 class ChooseCommand(StatesGroup):
-    main_command = State()
-    token_nft = State()
-    to_user = State()
-    price = State()
+    private_key = State()
+    token = State()
+    user_token = State()
+    yes = State()
+    no = State()
 
-@dp.message_handler(commands='start')
+@dp.message_handler(commands = ['start'])
 async def start_command(message: types.Message):
-    '''Метод вызова сообщения командой /start.'''
     username = message.from_user.first_name
     await message.reply(GREETINGS.format(name = username))
+    await message.reply('Authorization ! Accept your readiness /auth !', reply=False)
 
-async def choose_command(message: types.Message):
+@dp.message_handler(commands = ['auth'])
+async def authorisation_pk(message: types.Message):
+    await message.reply('Type your private key', reply=False)
+    await ChooseCommand.private_key.set()
+
+async def authorisation_accepted(message: types.Message, state: FSMContext):
+    await state.update_data(private_key=message.text)
+    await message.reply('Done ! Type /list to choose your token !', reply=False)
+    await state.finish()
+
+@dp.message_handler(commands = ['list'])
+async def tokens_all(message: types.Message):
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    for token in all_tokens:
+        keyboard.add(token)
+    await message.reply(f'Choose your token !', reply_markup=keyboard, reply=False)
+    await ChooseCommand.token.set()
+
+async def token_chosen(message: types.Message, state: FSMContext):
+    if message.text.lower() not in all_tokens:
+            await message.answer('Invalid token !')
+            return
+    await state.update_data(token=message.text)
+    get_token = await state.get_data()
+    await message.reply(('Your token: {data} !').format(data=get_token['token']), reply=False, reply_markup=types.ReplyKeyboardRemove())
+    await message.reply('Type /send to choose user address!', reply=False)
+    await state.finish()
+
+@dp.message_handler(commands = ['send'])
+async def token_user(message: types.Message):
+    await message.reply('Type user`s address !', reply=False)
+    await ChooseCommand.user_token.set()
+
+async def user_accepted(message: types.Message, state: FSMContext):
+    await state.update_data(user_token=message.text)
+    get_user_data = await state.get_data()
+    await message.reply(('Done ! User address: {boy}. Do you want to send your token /yes or /no ?').format(boy=get_user_data['user_token']), reply=False)
+    await state.finish()
+
+@dp.message_handler(commands = ['yes'])
+async def acception(message: types.Message):
+    await message.reply('Ok', reply=False)
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     for command in all_commands:
         keyboard.add(command)
-    await message.reply('Что вы хотите сделать?', reply_markup=keyboard, reply=False)
-    await ChooseCommand.main_command.set()
+    await message.reply('Choose command /sell or /buy !', reply_markup=keyboard, reply=False)
 
-async def activity(message: types.Message, state: FSMContext):
-    if message.text.lower() not in all_commands:
-        await message.answer('Такой команды, нет. Выберите существующую')
-        return
-    await state.update_data(action=message.text.lower())
-    get_command = await state.get_data()
-    if get_command['action'] == 'купить':
-        await state.finish()
-        await ChooseCommand.token_nft.set()
-        await message.reply(f'Введите id токена', reply=False, reply_markup=types.ReplyKeyboardRemove())
+@dp.message_handler(commands = ['sell'])
+async def sell(message: types.Message):
+    await message.reply('Ok', reply=False, reply_markup=types.ReplyKeyboardRemove())
 
-    elif get_command['action'] == 'передать':
-        await state.finish()
-        await ChooseCommand.to_user.set()
-        await message.reply('Введите кошелек пользовтеля, кому вы хотите перевести:',
-                            reply_markup=types.ReplyKeyboardRemove(),
-                            reply=False)
-    elif get_command['action'] == 'продать':
-        await state.finish()
-        await ChooseCommand.price.set()
-        await message.reply('Введите цену, за которую хотите продать NFT-токен:',
-                            reply_markup=types.ReplyKeyboardRemove(),
-                            reply=False)
+@dp.message_handler(commands = ['buy'])
+async def buy(message: types.Message):
+    await message.reply('Ok', reply=False, reply_markup=types.ReplyKeyboardRemove())
 
-async def token_choose(message: types.Message, state: FSMContext):
-    await state.update_data(token_nft=message.text)
-    get_token = await state.get_data()
-    await message.reply('Введен токен: {token}'.format(token = get_token['token_nft']))
-
-async def to_user(message: types.Message, state: FSMContext):
-    await state.update_data(person=message.text)
-    get_user = await state.get_data()
-    await message.reply(('Введен кошелек пользователя: {set_person}').format(set_person = get_user['person']))
-
-async def set_price(message: types.Message, state: FSMContext):
-    await state.update_data(price=message.text)
-    get_price = await state.get_data()
-    await message.reply(('Введена цена: {price}').format(price = get_price['price']))
+@dp.message_handler(commands = ['no'])
+async def acception(message: types.Message, state: FSMContext):
+    await message.reply('Ok. Type /cancel to exit', reply=False)
 
 async def close(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
@@ -81,12 +93,10 @@ async def close(message: types.Message, state: FSMContext):
     await message.reply('ОК')
 
 def handlers(dispatcher: Dispatcher):
-    dispatcher.register_message_handler(close, commands='выйти', state='*')
-    dispatcher.register_message_handler(choose_command, commands='команда', state='*')
-    dispatcher.register_message_handler(activity, state=ChooseCommand.main_command)
-    dispatcher.register_message_handler(token_choose, state=ChooseCommand.token_nft)
-    dispatcher.register_message_handler(to_user, state=ChooseCommand.to_user)
-    dispatcher.register_message_handler(set_price, state=ChooseCommand.price)
+    dispatcher.register_message_handler(authorisation_accepted, state=ChooseCommand.private_key)
+    dispatcher.register_message_handler(token_chosen, state=ChooseCommand.token)
+    dispatcher.register_message_handler(user_accepted, state=ChooseCommand.user_token)
+    dispatcher.register_message_handler(close, commands='cancel', state='*')
 
 if __name__ == '__main__':
     handlers(dp)
